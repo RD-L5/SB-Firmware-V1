@@ -1,0 +1,3 @@
+D:/Pico/SMTBED/build/pioasm/CMakeFiles/pioasm.dir
+D:/Pico/SMTBED/build/pioasm/CMakeFiles/edit_cache.dir
+D:/Pico/SMTBED/build/pioasm/CMakeFiles/rebuild_cache.dir
