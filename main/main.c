@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <FreeRTOS.h>
 #include <task.h>
 #include "pico/stdlib.h"
@@ -10,7 +11,7 @@
 #include "hardware/i2c.h"
 #include "motor.h"
 #include "LTC2449.h"
-
+#include "ds3231.h"
 
 const uint FAULT_a_pin = 25;
 const uint PWM_A1_pin = 20;
@@ -37,10 +38,183 @@ const uint NSLEEP = 24;
 #define MOSI    19
 #define SPI_PORT spi0
 
+//UART 0
+#define BUF_SIZE_0 1024
+#define ARRAY_SIZE_0 16
+// UART RX Variables
+static char uart_buf_0[BUF_SIZE_0];
+static uint16_t read_index_0 = 0;
+static uint16_t write_index_0 = 0;
+static uint16_t uart_count_0 = 0;
+uint8_t process_buf_0[1024];
+char charToPrintf[20];
+char charToString[1024];
+char toPrint_0[1024];
+uint8_t charToPrintf_count = 0;
+int8_t setTimeFlag_0 = 0;
+int8_t modulusCount_0 = 0;
+int8_t dataReady_0 = 0;
 
+//UART 1
+#define BUF_SIZE 1024
+#define ARRAY_SIZE 16
+// UART RX Variables
+static char uart_buf[BUF_SIZE];
+static uint16_t read_index = 0;
+static uint16_t write_index = 0;
+static uint16_t uart_count = 0;
+static char process_buf[1024];
+char charToPrintf_1[20];
+char charToString_1[1024];
+char toPrint[1024];
+uint8_t charToPrintf_count_1 = 0;
+int8_t setTimeFlag = 0;
+int8_t modulusCount = 0;
+int8_t dataReady = 0;
 
 int motor1[6] = {20, 21, 22, 23, 28, 29};
 int motor2[6] = {12, 13, 14, 15, 26, 27};
+
+//RING BUFFER UART 0
+void write_cb_0(char c)
+{
+    if(c == 0x0D){
+        sprintf(charToString,"%s", charToPrintf);
+        // printf("%s",charToString);
+        charToPrintf_count = 0;
+        
+        
+    }
+    uart_buf_0[write_index_0] = c;
+    charToPrintf[charToPrintf_count] = c;
+    write_index_0 = (write_index_0 + 1) % BUF_SIZE_0;
+    uart_count_0++;
+    charToPrintf_count++;
+}
+
+char read_cb_0(void)
+{
+    char c = uart_buf_0[read_index_0];
+    read_index_0 = (read_index_0 + 1) % BUF_SIZE_0;
+    uart_count_0--;
+    return c;
+}
+
+void UART0_ISR()
+{
+    uint8_t RX_i = 0;
+    while (uart_is_readable(uart0))
+    {
+        if(setTimeFlag_0 == 0){
+            uart_read_blocking(uart0, (uint8_t *) &toPrint_0, 15);
+            setTimeFlag_0 = 1;
+        }else{            
+            if(modulusCount_0 > 3){
+                write_cb_0(uart_getc(uart0));        
+                modulusCount_0 = 0;
+            }
+            modulusCount_0++;
+        }
+    }
+}
+
+char *sliceString_0(char *str, int start, int end)
+{
+
+    int i;
+    int size = (end - start) + 1;
+    char *output = (char *)malloc(size * sizeof(char));
+
+    for (i = 0; start <= end; start++, i++)
+    {
+        output[i] = str[start];
+    }
+
+    output[size] = '\0';
+
+    return output;
+}
+
+void print_array_0(char *array, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        // printf("%d ", array[i]);
+    }
+    // printf("\n");
+}
+
+//RING BUFFER UART 1
+void write_cb(char c)
+{
+    if(c == 0x0D){
+        sprintf(charToString_1,"%s", charToPrintf_1);
+        // printf("%s",charToString);
+        charToPrintf_count_1 = 0;
+        
+    }
+
+    uart_buf[write_index] = c;
+    charToPrintf_1[charToPrintf_count_1] = c;
+    write_index = (write_index + 1) % BUF_SIZE;
+    uart_count++;
+    charToPrintf_count_1++;
+}
+
+char read_cb(void)
+{
+    char c = uart_buf[read_index];
+    read_index = (read_index + 1) % BUF_SIZE;
+    uart_count--;
+    return c;
+}
+
+void UART1_ISR()
+{
+    uint8_t RX_i = 0;
+    while (uart_is_readable(uart1))
+    {
+        if(setTimeFlag == 0){
+            uart_read_blocking(uart1, (uint8_t *) &toPrint, 15);
+            setTimeFlag = 1;
+        }else{            
+            if(modulusCount > 3){
+                write_cb(uart_getc(uart1));        
+                modulusCount = 0;
+            }
+            modulusCount++;
+        }
+    }
+}
+
+char *sliceString(char *str, int start, int end)
+{
+
+    int i;
+    int size = (end - start) + 1;
+    char *output = (char *)malloc(size * sizeof(char));
+
+    for (i = 0; start <= end; start++, i++)
+    {
+        output[i] = str[start];
+    }
+
+    output[size] = '\0';
+
+    return output;
+}
+
+void print_array(char *array, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        // printf("%d ", array[i]);
+    }
+    // printf("\n");
+}
+
+
+
 
 int8_t LTC2445_EOC_timeout(uint16_t miso_timeout){
     uint16_t timer_count = 0;            
@@ -83,9 +257,9 @@ void led_1_task()
     gpio_set_dir(LED_PIN, GPIO_OUT);
     while (1) {
         gpio_put(LED_PIN, 1);
-        vTaskDelay(10);
+        vTaskDelay(20);
         gpio_put(LED_PIN, 0);
-        vTaskDelay(10);
+        vTaskDelay(20);
     }
 }
 
@@ -171,95 +345,95 @@ void piezo_task()
     pwm_set_wrap(slice, 125);  // 100 cycles (1 cycle = 1/100 seconds)
     pwm_set_chan_level(slice, PWM_CHAN_A, 60);  // 50% duty cycle (half of the period)
     pwm_set_clkdiv(slice, 25000 ); //30000
-    pwm_set_enabled(slice, true);
-    vTaskDelay(50);
+    // pwm_set_enabled(slice, true);
+    // vTaskDelay(50);
     
     
     while (1) {
+         pwm_set_enabled(slice, true);
+         vTaskDelay(50);
+         pwm_set_enabled(slice, false);
+         vTaskDelay(50);
+         pwm_set_enabled(slice, true);
+         vTaskDelay(50);
          pwm_set_enabled(slice, false);
          vTaskDelay(50);
     }
 }
 
 void uart0_task()
-    {   
-
-        // static int chars_rxed = 0;
-        // uint8_t rxChar[16];
+    {
         // UART0 RX IRQ
         uart_init(uart0, 115200);                        // Initialize UART0
         gpio_set_function(0, GPIO_FUNC_UART);           // Pin Functions
         gpio_set_function(1, GPIO_FUNC_UART);           // Pin Functions
         uart_set_hw_flow(uart0, false, false);           // Default UART
         uart_set_format(uart0, 8, 1, UART_PARITY_NONE);  // Default UART
-        uart_set_fifo_enabled(uart0, false);             // Turn off FIFO's - we want to do this character by character
+        uart_set_fifo_enabled(uart0, false);             // Turn off FIFO's - we want to do this character by character   
+        uart_set_irq_enables(uart0, true, false);
+        irq_set_exclusive_handler(UART0_IRQ, UART0_ISR); // And set up and enable the interrupt handlers
         irq_set_enabled(UART0_IRQ, true);                // Enable Interrupt
         uart_set_irq_enables(uart0, true, false);        // Now enable the UART to send interrupts - RX only
-    
+        
         while (1) {
-
-            while (uart_is_readable(uart0)) {
-                // // uint8_t rxChar = uart_getc(UART_ID);
-                // uart_read_blocking(uart0, rxChar, 11);
-                // printf("uart 0: %s\n", rxChar);
-                // Can we send it back?
-            if (uart_is_writable(uart0)) {
-                // Change it slightly first!
-            
-                // uart_putc(UART_ID, rxChar);
-            }
-            // chars_rxed++;
+            printf("%s", charToString );
+            char * token = strtok(charToString, ","); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
+            while( token != NULL ) {
+             //   printf( " %s\n", token ); //printing each token
+                token = strtok(NULL, ",");
         }
-        vTaskDelay(100);
-    }
-}
-            
-void uart1_task()
-    {   
-        // UART Defines
-        // #define UART1_TX 4
-        // #define UART1_RX 5
+        
+            // char rx_0;
+            // if( uart_count_0 > 0){
+            //     rx_0 = read_cb_0();
 
-        #define UART_ID uart1
+            //     if(rx_0 == 0x0A){
+            //         printf("\n");
+            //     }else{
+            //         printf("%c", rx_0);
+            //     }
+            // }
+        vTaskDelay(10);
+        }
+}
+
+
+void uart1_task()
+    {  
         static int chars_rxed = 0;
-        uint8_t rxChar[16];
-        // UART0 RX IRQ
         uart_init(uart1, 115200);                        // Initialize UART0
         gpio_set_function(4, GPIO_FUNC_UART);           // Pin Functions
         gpio_set_function(5, GPIO_FUNC_UART);           // Pin Functions
         uart_set_hw_flow(uart1, false, false);           // Default UART
         uart_set_format(uart1, 8, 1, UART_PARITY_NONE);  // Default UART
-        uart_set_fifo_enabled(uart1, false);             // Turn off FIFO's - we want to do this character by character
-        //irq_set_enabled(UART1_IRQ, true);                // Enable Interrupt
+        uart_set_fifo_enabled(uart1, false);             // Turn off FIFO's - we want to do this character by character   
         uart_set_irq_enables(uart1, true, false);
+        irq_set_exclusive_handler(UART1_IRQ, UART1_ISR); // And set up and enable the interrupt handlers
+        irq_set_enabled(UART1_IRQ, true);                // Enable Interrupt
+        uart_set_irq_enables(uart1, true, false);        // Now enable the UART to send interrupts - RX only
+    
         while (1) {
-
-            while (uart_is_readable(uart1)) {
-
-                uint8_t rxChar = uart_getc(UART_ID);
-                //uart_read_blocking(uart1, rxChar, 11);
-                printf("%c", rxChar);
-                vTaskDelay(100);
-            // if (rxChar == 0x0A) {
+            printf("%s\n", charToString_1);
+            char * token = strtok(charToString_1, ",");
+            while( token != NULL ) {
+              //  printf( " %s\n", token ); //printing each token
+                token = strtok(NULL, ",");
+        }
+            // char rx;
+            // if( uart_count > 0){
+            //     rx = read_cb();
+            //     if(rx == 0x0A){
             //         printf("\n");
-
+            //     }else{
+            //         printf("%c", rx);
             //     }
-            }
-                // Can we send it back?
-        //     if (uart_is_writable(uart1)) {
-        //         // Change it slightly first!
-            
-        //         // uart_putc(UART_ID, rxChar);
-        //     }
-        //     //chars_rxed++;
-        // }
-        // vTaskDelay(100);
+            // }
+            vTaskDelay(1);
     }
  }
 int main()
 {
     stdio_init_all();
-    
     gpio_init(NSLEEP);
     gpio_set_dir(NSLEEP, GPIO_OUT);
     gpio_put(NSLEEP, true);
@@ -280,12 +454,15 @@ int main()
         gpio_set_dir(motor1[i], GPIO_OUT);
         gpio_set_dir(motor2[i], GPIO_OUT);
     }
+    
+   
+
     xTaskCreate(led_1_task, "LED_Task_1", 256, NULL, 1, NULL);
     xTaskCreate(ltc2449_task, "LTC2449", 256, NULL, 1, NULL);
     xTaskCreate(motor_task, "motor_task", 256, NULL, 1, NULL);
     xTaskCreate(piezo_task, "piezo", 256, NULL, 1, NULL);
-    //xTaskCreate(uart0_task,"Uart0",256, NULL, 1, NULL);
-    // xTaskCreate(uart1_task,"Uart",256, NULL, 1, NULL);
+    xTaskCreate(uart0_task,"Uart0",256, NULL, 1, NULL);
+    xTaskCreate(uart1_task,"Uart",256, NULL, 1, NULL);
 
     vTaskStartScheduler();
     
