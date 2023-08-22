@@ -75,21 +75,52 @@ int8_t dataReady = 0;
 int motor1[6] = {20, 21, 22, 23, 28, 29};
 int motor2[6] = {12, 13, 14, 15, 26, 27};
 
+char data_UART0[256][10];
+char data_UART1[256][10];
+
+int toInt0[10];
+int toInt1[10];
+
+int dataInject = 0;
+int dataInclinometer = 0;
+
 //RING BUFFER UART 0
 void write_cb_0(char c)
 {
     if(c == 0x0D){
+    }else if(c == 0x0A){     
+        int token_count = 0;           
         sprintf(charToString,"%s", charToPrintf);
-        // printf("%s",charToString);
+        printf("%s",charToString);
+        memset(charToPrintf, '\0', sizeof(charToPrintf));
         charToPrintf_count = 0;
         
-        
+        char * token = strtok(charToString, ","); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
+        while( token != NULL ) {
+            // if(token_count > 0){
+            // }            
+            sprintf(data_UART0[token_count], "%s", token);
+            // printf( "token %d : %s\n",token_count, token ); //printing each token
+            // printf("%s", token);
+            token = strtok(NULL, ",");
+            token_count++;
+        }
+        for(int i=0;i<token_count;i++){
+            toInt0[i] = atoi(data_UART0[i]);
+            // printf("uart0[%d] = %d\n",i, toInt0[i]);
+        }
+        if(token_count > 4){
+            dataInject = toInt0[0];
+        }
+        // printf("======\n");
+
+    }else{
+        charToPrintf[charToPrintf_count] = c;
+        charToPrintf_count++;
     }
     uart_buf_0[write_index_0] = c;
-    charToPrintf[charToPrintf_count] = c;
     write_index_0 = (write_index_0 + 1) % BUF_SIZE_0;
     uart_count_0++;
-    charToPrintf_count++;
 }
 
 char read_cb_0(void)
@@ -148,17 +179,39 @@ void print_array_0(char *array, int size)
 void write_cb(char c)
 {
     if(c == 0x0D){
+        ;
+    }else if(c == 0x0A){     
+        int token_count = 0;           
         sprintf(charToString_1,"%s", charToPrintf_1);
-        // printf("%s",charToString);
+        // printf("%s",charToString_1);
+        memset(charToPrintf_1, '\0', sizeof(charToPrintf_1));
         charToPrintf_count_1 = 0;
         
+        char * token = strtok(charToString_1, ","); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
+        while( token != NULL ) {
+            // if(token_count > 0){
+            // }            
+            sprintf(data_UART1[token_count], "%s", token);
+            // printf( "token %d : %s\n",token_count, token ); //printing each token
+            // printf("%s", token);
+            token = strtok(NULL, ",");
+            token_count++;
+        }
+        for(int i=0;i<token_count;i++){
+            toInt1[i] = atoi(data_UART1[i]);
+            // printf("uart1[%d] = %d\n",i, toInt1[i]);
+        }
+        dataInclinometer = toInt1[0];
+        // printf("======\n");
+
+    }else{
+        charToPrintf_1[charToPrintf_count_1] = c;
+        charToPrintf_count_1++;
     }
 
-    uart_buf[write_index] = c;
-    charToPrintf_1[charToPrintf_count_1] = c;
+    uart_buf[write_index] = c;    
     write_index = (write_index + 1) % BUF_SIZE;
-    uart_count++;
-    charToPrintf_count_1++;
+    uart_count++;    
 }
 
 char read_cb(void)
@@ -212,9 +265,6 @@ void print_array(char *array, int size)
     }
     // printf("\n");
 }
-
-
-
 
 int8_t LTC2445_EOC_timeout(uint16_t miso_timeout){
     uint16_t timer_count = 0;            
@@ -298,42 +348,52 @@ void ltc2449_task()
 
 void motor_task()
 {   
-  
-
     while (1) {
-        motor1_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(200);
-        motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(100);
-        motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(200);
-        motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(100);
-        motor2_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(200);
-        motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(100);
-        motor2_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(200);
-        motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-        vTaskDelay(100);
+        printf("data inject = %d\n", dataInject);
+        printf("data inclinometer = %d\n", dataInclinometer);
+        if(dataInclinometer < dataInject - 3){
+            motor1_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);;
+        }else if(dataInclinometer > dataInject + 3){
+            motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);;
+        }else{
+            motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+            printf("SUDUT SAMA\n");
+        }
+        vTaskDelay(10);
+
+        // motor1_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(200);
+        // motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(100);
+        // motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(200);
+        // motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(100);
+        // motor2_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(200);
+        // motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(100);
+        // motor2_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(200);
+        // motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        // vTaskDelay(100);
         
-        motor1_B_CC(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(200);
-        motor2_OFF(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin, ENA_B2_pin, PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(100);
-        motor1_B_CCW(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(200);
-        motor2_OFF(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin, ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(100);
-        motor2_B_CC(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(200);
-        motor2_OFF(PWM_A2_pin, ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(100);
-        motor2_B_CCW(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(200);
-        motor2_OFF(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin, ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
-        vTaskDelay(100);
+        // motor1_B_CC(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(200);
+        // motor2_OFF(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin, ENA_B2_pin, PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(100);
+        // motor1_B_CCW(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(200);
+        // motor2_OFF(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin, ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(100);
+        // motor2_B_CC(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(200);
+        // motor2_OFF(PWM_A2_pin, ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(100);
+        // motor2_B_CCW(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin,ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(200);
+        // motor2_OFF(PWM_A2_pin,ENA_A2_pin,PWM_B2_pin, ENA_B2_pin,PWM_C2_pin,ENA_C2_pin);
+        // vTaskDelay(100);
     }
  }
 void piezo_task()
@@ -347,8 +407,6 @@ void piezo_task()
     pwm_set_clkdiv(slice, 25000 ); //30000
     // pwm_set_enabled(slice, true);
     // vTaskDelay(50);
-    
-    
     while (1) {
          pwm_set_enabled(slice, true);
          vTaskDelay(50);
@@ -376,12 +434,14 @@ void uart0_task()
         uart_set_irq_enables(uart0, true, false);        // Now enable the UART to send interrupts - RX only
         
         while (1) {
-            printf("%s", charToString );
-            char * token = strtok(charToString, ","); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
-            while( token != NULL ) {
-             //   printf( " %s\n", token ); //printing each token
-                token = strtok(NULL, ",");
-        }
+            // printf("%s", charToString );            
+            
+            // char * token = strtok(charToString, ","); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
+            // while( token != NULL ) {
+            //     // printf( "%s\n", token ); //printing each token
+            //     // printf("%s", token[0]);
+            //     token = strtok(NULL, ",");               
+            // }
         
             // char rx_0;
             // if( uart_count_0 > 0){
@@ -413,12 +473,12 @@ void uart1_task()
         uart_set_irq_enables(uart1, true, false);        // Now enable the UART to send interrupts - RX only
     
         while (1) {
-            printf("%s\n", charToString_1);
-            char * token = strtok(charToString_1, ",");
-            while( token != NULL ) {
-              //  printf( " %s\n", token ); //printing each token
-                token = strtok(NULL, ",");
-        }
+            // printf("%s\n", charToString_1);
+            // char * token = strtok(charToString_1, ",");
+            // while( token != NULL ) {
+            //   //  printf( " %s\n", token ); //printing each token
+            //     token = strtok(NULL, ",");
+        // }
             // char rx;
             // if( uart_count > 0){
             //     rx = read_cb();
@@ -428,7 +488,7 @@ void uart1_task()
             //         printf("%c", rx);
             //     }
             // }
-            vTaskDelay(1);
+            vTaskDelay(2);
     }
  }
 int main()
