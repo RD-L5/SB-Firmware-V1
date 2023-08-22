@@ -75,12 +75,13 @@ int8_t dataReady = 0;
 int motor1[6] = {20, 21, 22, 23, 28, 29};
 int motor2[6] = {12, 13, 14, 15, 26, 27};
 
-char data_UART0[256][10];
-char data_UART1[256][10];
+char data_UART0[256][256];
+char data_UART1[256][256];
 
 int toInt0[10];
 int toInt1[10];
 
+char dataFromInject[256];
 int dataInject = 0;
 int dataInclinometer = 0;
 
@@ -91,10 +92,11 @@ void write_cb_0(char c)
     }else if(c == 0x0A){     
         int token_count = 0;           
         sprintf(charToString,"%s", charToPrintf);
-        printf("%s",charToString);
+        // printf("%s",charToString);
         memset(charToPrintf, '\0', sizeof(charToPrintf));
         charToPrintf_count = 0;
         
+        // ========== Split String ================
         char * token = strtok(charToString, ","); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
         while( token != NULL ) {
             // if(token_count > 0){
@@ -105,13 +107,36 @@ void write_cb_0(char c)
             token = strtok(NULL, ",");
             token_count++;
         }
-        for(int i=0;i<token_count;i++){
-            toInt0[i] = atoi(data_UART0[i]);
-            // printf("uart0[%d] = %d\n",i, toInt0[i]);
-        }
+        // =================================================
+
+        // ========== convert String to Int ================
+        // for(int i=0;i<token_count;i++){
+        //     toInt0[i] = atoi(data_UART0[i]);
+        //     // printf("uart0[%d] = %d\n",i, toInt0[i]);
+        // }
+        // =================================================
+
+        // ========== copy data to dataInject variable ================
         if(token_count > 4){
-            dataInject = toInt0[0];
+            sprintf(dataFromInject,"%s", data_UART0[0]);
+            // dataInject = toInt0[0];
+            // printf("data from inject: %s\n", dataFromInject);
+
+            // ========== Split String ================
+            char * inject = strtok(dataFromInject, "#"); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
+            while( inject != NULL ) {
+                // if(token_count > 0){
+                // }            
+                // sprintf(data_UART0[token_count], "%s", inject);
+                // printf( "inject %d : %s\n",token_count, inject ); //printing each inject
+                printf("%s\n", inject);
+                inject = strtok(NULL, "#");
+                // token_count++;
+            }
+        // =================================================
         }
+        // =================================================
+        
         // printf("======\n");
 
     }else{
@@ -349,15 +374,15 @@ void ltc2449_task()
 void motor_task()
 {   
     while (1) {
-        printf("data inject = %d\n", dataInject);
-        printf("data inclinometer = %d\n", dataInclinometer);
+        // printf("data inject = %d\n", dataInject);
+        // printf("data inclinometer = %d\n", dataInclinometer);
         if(dataInclinometer < dataInject - 3){
             motor1_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);;
         }else if(dataInclinometer > dataInject + 3){
             motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);;
         }else{
             motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
-            printf("SUDUT SAMA\n");
+            // printf("SUDUT SAMA\n");
         }
         vTaskDelay(10);
 
