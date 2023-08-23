@@ -182,7 +182,7 @@ void write_cb_0(char c)
         }
         // =================================================
         
-        printf("%d\n", dataDegree[0]);
+        // printf("%d\n", dataDegree[0]);
 
     }else{
         charToPrintf[charToPrintf_count] = c;
@@ -419,8 +419,8 @@ void ltc2449_task()
 void motor_task()
 {   
     while (1) {
-        // printf("data inject = %d\n", data_br);
-        // printf("data inclinometer = %d\n", dataInclinometer);
+        printf("data inject = %d\n", data_br);
+        printf("data inclinometer = %d\n", dataInclinometer);
         if(dataInclinometer < data_br - thresshold){
             motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
         }else if(dataInclinometer > data_br + thresshold){
