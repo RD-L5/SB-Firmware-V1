@@ -46,10 +46,10 @@ static char uart_buf_0[BUF_SIZE_0];
 static uint16_t read_index_0 = 0;
 static uint16_t write_index_0 = 0;
 static uint16_t uart_count_0 = 0;
-uint8_t process_buf_0[1024];
-char charToPrintf[20];
-char charToString[1024];
-char toPrint_0[1024];
+uint8_t process_buf_0[64];
+char charToPrintf[64];
+char charToString[64];
+char toPrint_0[64];
 uint8_t charToPrintf_count = 0;
 int8_t setTimeFlag_0 = 0;
 int8_t modulusCount_0 = 0;
@@ -63,10 +63,10 @@ static char uart_buf[BUF_SIZE];
 static uint16_t read_index = 0;
 static uint16_t write_index = 0;
 static uint16_t uart_count = 0;
-static char process_buf[1024];
+static char process_buf[64];
 char charToPrintf_1[20];
-char charToString_1[1024];
-char toPrint[1024];
+char charToString_1[64];
+char toPrint[64];
 uint8_t charToPrintf_count_1 = 0;
 int8_t setTimeFlag = 0;
 int8_t modulusCount = 0;
@@ -75,22 +75,33 @@ int8_t dataReady = 0;
 int motor1[6] = {20, 21, 22, 23, 28, 29};
 int motor2[6] = {12, 13, 14, 15, 26, 27};
 
-char data_UART0[256][256];
-char data_UART1[256][256];
+char data_UART0[10][32];
+char data_UART1[10][32];
+char data_Inject[10][32];
+char tempData1[10][32];        
+char tempData2[10][32];        
 
 int toInt0[10];
 int toInt1[10];
 
-char dataFromInject[256];
-int dataInject = 0;
+int dataDegree[4];
+
+char dataFromInject[64];
+int data_br = 0;
+int data_kr = 0;
+int data_hl = 0;
+int data_tr = 0;
 int dataInclinometer = 0;
+int thresshold = 3;
 
 //RING BUFFER UART 0
 void write_cb_0(char c)
 {
     if(c == 0x0D){
+        ;
     }else if(c == 0x0A){     
-        int token_count = 0;           
+        int token_count = 0;
+        int data_count = 0;                      
         sprintf(charToString,"%s", charToPrintf);
         // printf("%s",charToString);
         memset(charToPrintf, '\0', sizeof(charToPrintf));
@@ -109,35 +120,69 @@ void write_cb_0(char c)
         }
         // =================================================
 
-        // ========== convert String to Int ================
+        // ========== convert String to Int || data_UART0[0] is data Inject || data_UART0[>1] is data side guard ================
         // for(int i=0;i<token_count;i++){
         //     toInt0[i] = atoi(data_UART0[i]);
         //     // printf("uart0[%d] = %d\n",i, toInt0[i]);
         // }
         // =================================================
 
-        // ========== copy data to dataInject variable ================
-        if(token_count > 4){
-            sprintf(dataFromInject,"%s", data_UART0[0]);
-            // dataInject = toInt0[0];
-            // printf("data from inject: %s\n", dataFromInject);
+        // ========== copy data to data_br variable ================
+        if(token_count > 4){    
+            
+            sprintf(dataFromInject,"%s", data_UART0[0]);            
 
             // ========== Split String ================
             char * inject = strtok(dataFromInject, "#"); // https://www.educative.io/answers/splitting-a-string-using-strtok-in-c
             while( inject != NULL ) {
-                // if(token_count > 0){
+                // if(data_count > 0){
                 // }            
-                // sprintf(data_UART0[token_count], "%s", inject);
-                // printf( "inject %d : %s\n",token_count, inject ); //printing each inject
-                printf("%s\n", inject);
+                sprintf(data_Inject[data_count], "%s", inject);
+                // printf( "inject %d : %s\n",data_count, inject ); //printing each inject
+                // printf("%s\n", inject);
                 inject = strtok(NULL, "#");
-                // token_count++;
+                data_count++;
+            }
+        // =================================================
+
+        // ========== Getting Degree Value ================
+            for(int i=0;i<data_count;i++){
+                // printf("%s\n", data_Inject[i]);            
+                if(data_Inject[i][3] > 47 && data_Inject[i][3] < 58){
+                    // printf("%c", data_Inject[i][2]);
+                    // printf("%c", data_Inject[i][3]);
+                    sprintf(tempData1[i], "%c", data_Inject[i][2]);
+                    sprintf(tempData2[i], "%c", data_Inject[i][3]);
+                    strcat(tempData1[i], tempData2[i]);
+                    // printf("%s", tempData1[i]);
+                }
+                else{
+                    // printf("%c", data_Inject[i][2]);
+                    sprintf(tempData1[i], "%c", data_Inject[i][2]);
+                    // printf("%s", tempData1[i]);                
+                }
+                // printf("\n");
+            }
+        // =================================================
+
+        // ========== convert String to Int ================
+            for(int i=0;i<data_count;i++){
+                dataDegree[i] = atoi(tempData1[i]);
+                // printf("uart0[%d] = %d\n",i, dataDegree[i]);
+
+                if(dataDegree[0] == 99){
+                    data_br = dataInclinometer;
+                }
+                else{
+                    data_br = dataDegree[0];
+                }
+                // printf("data from inject: %s\n", dataFromInject);
             }
         // =================================================
         }
         // =================================================
         
-        // printf("======\n");
+        printf("%d\n", dataDegree[0]);
 
     }else{
         charToPrintf[charToPrintf_count] = c;
@@ -374,12 +419,12 @@ void ltc2449_task()
 void motor_task()
 {   
     while (1) {
-        // printf("data inject = %d\n", dataInject);
+        // printf("data inject = %d\n", data_br);
         // printf("data inclinometer = %d\n", dataInclinometer);
-        if(dataInclinometer < dataInject - 3){
-            motor1_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);;
-        }else if(dataInclinometer > dataInject + 3){
-            motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);;
+        if(dataInclinometer < data_br - thresshold){
+            motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
+        }else if(dataInclinometer > data_br + thresshold){
+            motor1_CC(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
         }else{
             motor1_OFF(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
             // printf("SUDUT SAMA\n");
