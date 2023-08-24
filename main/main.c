@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <FreeRTOS.h>
 #include <task.h>
+#include <math.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
@@ -336,6 +337,8 @@ void print_array(char *array, int size)
     // printf("\n");
 }
 
+
+
 int8_t LTC2445_EOC_timeout(uint16_t miso_timeout){
     uint16_t timer_count = 0;            
     gpio_put(CS, 0);                     
@@ -370,6 +373,7 @@ uint32_t LTC2445_read(uint16_t adc_command){
     return (((uint32_t)data[0] & 0xFF) << 24) | (((uint32_t)data[1] & 0xFF) << 16) | (((uint32_t)data[2] & 0xFF) << 8) | ((uint32_t)data[3] & 0xFF);
 }
 
+
 void led_1_task()
 {   
     const uint LED_PIN = 7;
@@ -385,6 +389,9 @@ void led_1_task()
 
 void ltc2449_task()
 {   
+    float adc_voltage;
+    float lsb = 1000;
+    int32_t offset_code = 536906755;
     spi_init(SPI_PORT, 500 * 1000);
     gpio_set_function(MISO, GPIO_FUNC_SPI);
     gpio_set_function(SCLK, GPIO_FUNC_SPI);
@@ -393,22 +400,49 @@ void ltc2449_task()
     gpio_init(CS);
     gpio_set_dir(CS, GPIO_OUT);
     gpio_put(CS, 1);
-
+    
     while (1) {
         uint16_t miso_timeout = 1000;
-        uint16_t adc_command = LTC2449_P6_N7 | LTC2449_OSR_32768;                
+        //lOAD CELL CHANNEL 1
+        // uint16_t adc_command = LTC2449_P0_N1 | LTC2449_OSR_32768; 
+        int32_t adc_command = LTC2449_P0_N1 | LTC2449_OSR_32768;
+        int32_t adc_command_value;
+        
         if(LTC2445_EOC_timeout(miso_timeout)){
             printf("Timeout");
         } else{
-            // printf("CHANNEL 1 :%x\n", LTC2445_read(adc_command));
+            printf("CHANNEL 1 :%d\n", LTC2445_read(adc_command));
+            adc_command_value = LTC2445_read(adc_command);
         }
 
-        uint16_t adc_command6 = LTC2449_P0_N1 | LTC2449_OSR_32768;        
-        if(LTC2445_EOC_timeout(miso_timeout)){
-            printf("Timeout");
-        } else{
-            // printf("CHANNEL 6 :%x\n", LTC2445_read(adc_command6));
-        }
+         //lOAD CELL CHANNEL 2
+        // uint16_t adc_command1 = LTC2449_P2_N3  | LTC2449_OSR_32768;   
+        //int32_t adc_command1 = LTC2449_P2_N3 | LTC2449_OSR_32768;     
+        // if(LTC2445_EOC_timeout(miso_timeout)){
+        //     printf("Timeout");
+        // } else{
+        //     printf("CHANNEL 2 :%d\n", LTC2445_read(adc_command1));
+        // }
+
+        //  //lOAD CELL CHANNEL 3
+        // uint16_t adc_command2 = LTC2449_P4_N5  | LTC2449_OSR_32768;    
+        // int32_t adc_command2 = LTC2449_P4_N5  | LTC2449_OSR_32768;    
+        // if(LTC2445_EOC_timeout(miso_timeout)){
+        //     printf("Timeout");
+        // } else{
+        //     printf("CHANNEL 3 :%d\n", LTC2445_read(adc_command2));
+        // }
+        
+        //  //lOAD CELL CHANNEL 4
+        // uint16_t adc_command3 = LTC2449_P6_N7 | LTC2449_OSR_32768; 
+        // int32_t adc_command3 = LTC2449_P4_N5  | LTC2449_OSR_32768;               
+        // if(LTC2445_EOC_timeout(miso_timeout)){
+        //     printf("Timeout");
+        // } else{
+        //     printf("CHANNEL 4 :%d\n", LTC2445_read(adc_command3));
+        // }
+
+        
 
         // printf("=======================\n");
         
@@ -419,8 +453,8 @@ void ltc2449_task()
 void motor_task()
 {   
     while (1) {
-        printf("data inject = %d\n", data_br);
-        printf("data inclinometer = %d\n", dataInclinometer);
+        // printf("data inject = %d\n", data_br);
+        // printf("data inclinometer = %d\n", dataInclinometer);
         if(dataInclinometer < data_br - thresshold){
             motor1_CCW(PWM_A1_pin,ENA_A1_pin,PWM_B1_pin,ENA_B1_pin,PWM_C1_pin,ENA_C1_pin);
         }else if(dataInclinometer > data_br + thresshold){
