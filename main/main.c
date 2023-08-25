@@ -14,6 +14,7 @@
 #include "LTC2449.h"
 #include "ds3231.h"
 
+
 const uint FAULT_a_pin = 25;
 const uint PWM_A1_pin = 20;
 const uint ENA_A1_pin = 23;
@@ -39,6 +40,8 @@ const uint NSLEEP = 24;
 #define MOSI    19
 #define SPI_PORT spi0
 
+
+
 //UART 0
 #define UART_ID uart0
 #define BUF_SIZE_0 1024
@@ -56,6 +59,7 @@ uint8_t charToPrintf_count = 0;
 int8_t setTimeFlag_0 = 0;
 int8_t modulusCount_0 = 0;
 int8_t dataReady_0 = 0;
+
 
 //UART 1
 #define BUF_SIZE 1024
@@ -102,6 +106,16 @@ char data_ltc2[64];
 char data_ltc3[64];
 char data_ltc4[64];
 //RING BUFFER UART 0
+
+uint8_t buff1[6];
+uint8_t buff2[6];
+uint32_t diff1, diff2, diff3, diff4;
+
+
+#define HOST_TO_LE_32(buf, val)( ((buf)[0] =  (uint8_t) (val)   ) , \
+                               ((buf)[1] =  (uint8_t) (val>>8)  ) , \
+                               ((buf)[2] =  (uint8_t) (val>>16) ) , \
+                               ((buf)[3] =  (uint8_t) (val>>24) ) )
 void write_cb_0(char c)
 {
     if(c == 0x0D){
@@ -393,6 +407,8 @@ void led_1_task()
     }
 }
 
+
+
 void ltc2449_task()
 {   
     float adc_voltage;
@@ -406,43 +422,32 @@ void ltc2449_task()
     gpio_init(CS);
     gpio_set_dir(CS, GPIO_OUT);
     gpio_put(CS, 1);
-    
+ 
     while (1) {
         uint16_t miso_timeout = 1000;
         
         //lOAD CELL CHANNEL 1
         uint16_t ltc_read = LTC2449_P0_N1 | LTC2449_OSR_32768; 
-        int32_t adc_command;
-        adc_command = LTC2445_read(ltc_read);
-        sprintf(data_ltc1, "1: %d\n", adc_command);
         if(LTC2445_EOC_timeout(miso_timeout)){
             printf("Timeout");
         } else{
-          // printf("CHANNEL 1 :%s\n",data_ltc);
-            
-        //    uart_puts(uart0, "hai\n");
+            diff1 = LTC2445_read(ltc_read);
+            //printf("CHANNEL 1 :%x\n", diff1);
         }
 
         // lOAD CELL CHANNEL 2
-        //uint16_t adc_command1 = LTC2449_P2_N3  | LTC2449_OSR_32768; 
         uint16_t ltc_read1 = LTC2449_P2_N3 | LTC2449_OSR_32768; 
-        int32_t adc_command1;
-        adc_command1 = LTC2445_read(ltc_read1);
-        sprintf(data_ltc2, "2: %d\n", adc_command1); 
-        // int32_t adc_command1 = LTC2449_P2_N3 | LTC2449_OSR_32768;     
+
         if(LTC2445_EOC_timeout(miso_timeout)){
             printf("Timeout");
         } else{
-           // printf("CHANNEL 2 :%d\n", LTC2445_read(adc_command1));
-           //uart_puts(UART_ID, " Hello!\n");
+            diff2 = LTC2445_read(ltc_read1);
+            //printf("CHANNEL 1 :%x\n", diff2);
         }
 
-         //lOAD CELL CHANNEL 3
-        //uint16_t adc_command2 = LTC2449_P4_N5  | LTC2449_OSR_32768;
+         //lOAD CELL CHANNEL 3 
         uint16_t ltc_read2 = LTC2449_P4_N5  | LTC2449_OSR_32768;     
-        int32_t adc_command2 ;
-        adc_command2 = LTC2445_read(ltc_read2);
-        sprintf(data_ltc3, "3: %d\n", adc_command2); 
+        sprintf(data_ltc3, "3: %X\n", ltc_read2); 
         if(LTC2445_EOC_timeout(miso_timeout)){
             printf("Timeout");
         } else{
@@ -451,20 +456,27 @@ void ltc2449_task()
         
          //lOAD CELL CHANNEL 4
         //uint16_t adc_command3 = LTC2449_P6_N7 | LTC2449_OSR_32768; 
-        uint16_t ltc_read3 = LTC2449_P4_N5  | LTC2449_OSR_32768;
-        int32_t adc_command3; 
-        adc_command3 = LTC2445_read(ltc_read3);
-        sprintf(data_ltc4, "4: %d\n", adc_command3);                
+        uint16_t ltc_read3 = LTC2449_P4_N5  | LTC2449_OSR_32768;              
         if(LTC2445_EOC_timeout(miso_timeout)){
             printf("Timeout");
         } else{
           //  printf("CHANNEL 4 :%d\n", LTC2445_read(adc_command3));
         }
 
-        
-
         // printf("=======================\n");
+        HOST_TO_LE_32(buff1, diff1);
+        HOST_TO_LE_32(buff2, diff2);
         
+       
+
+        
+        // for(int i=3; i>0; i--){
+        //     printf("%02X", buff2[i]);
+        // }
+        // printf("\n");
+        // printf("=======================\n");
+        // HOST_TO_LE_32(buff, diff3);
+        // HOST_TO_LE_32(buff, diff4)
         vTaskDelay(50);
     }
 }
@@ -555,12 +567,22 @@ void uart0_task()
         irq_set_exclusive_handler(UART0_IRQ, UART0_ISR); // And set up and enable the interrupt handlers
         irq_set_enabled(UART0_IRQ, true);                // Enable Interrupt
         uart_set_irq_enables(UART_ID, true, false);        // Now enable the UART to send interrupts - RX only
-        
+    
         while (1) {
-              uart_puts(UART_ID, data_ltc1);
-              uart_puts(UART_ID, data_ltc2);
-              uart_puts(UART_ID, data_ltc3);
-              uart_puts(UART_ID, data_ltc4);
+             for(int i=3; i>0; i--){
+                // printf("%02X", buff1[i]);
+                // printf("%02X", buff2[i]);
+                // sprintf(//s, "%02X\n",buff1[i]);
+                uart_putc_raw(UART_ID, buff1[i]);
+                uart_putc_raw(UART_ID, buff2[i]);
+            }
+            uart_putc_raw(UART_ID, '\n');
+             
+            //   char streamData = data_ltc1;
+                
+            //   uart_puts(UART_ID, data_ltc2);
+            //   uart_puts(UART_ID, data_ltc3);
+            //   uart_puts(UART_ID, data_ltc4);
             // uart_puts(UART_ID, "hello\n");
             // printf("%s", charToString );            
             
@@ -582,7 +604,7 @@ void uart0_task()
             //     }
             // }
             // uart_puts(UART_ID, "const char *s\n");
-        vTaskDelay(10);
+        vTaskDelay(100);
         }
 }
 
